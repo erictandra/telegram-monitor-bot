@@ -11,10 +11,12 @@ services:
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - CHAT_ID=${CHAT_ID}
-      - HOST_SSH_USER=${HOST_SSH_USER}
+      - SSH_KEY_LOCATION=${SSH_KEY_LOCATION}
+      - SSH_USER_NAME=${SSH_USER_NAME}
     privileged: true
     network_mode: host
     volumes:
+      - ${SSH_KEY_HOST_PATH}:/app/ssh:ro # ← path host dari env
       - /sys:/sys:ro
       - /proc:/proc:ro
       - bot-data:/app/data
