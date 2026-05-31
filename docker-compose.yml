@@ -11,6 +11,7 @@ services:
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - CHAT_ID=${CHAT_ID}
+      - HOST_SSH_USER=${HOST_SSH_USER}
     privileged: true
     network_mode: host
     volumes:

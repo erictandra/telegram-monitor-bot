@@ -2,7 +2,7 @@
 """
 Telegram Bot - Linux System Monitor
 Monitoring: suhu, RAM, CPU, GPU, baterai, IP
-Fitur: notifikasi hidup, pc-info, set/get max temperature, shutdown
+Fitur: notifikasi hidup, pc-info, set/get max temperature, shutdown & restart via SSH
 """
 
 import os
@@ -31,8 +31,11 @@ from telegram.ext import (
 )
 
 # ─── KONFIGURASI ────────────────────────────────────────────────────────────────
-BOT_TOKEN      = os.getenv("BOT_TOKEN", "ISI_TOKEN_DISINI")
-_CHAT_ID_RAW   = os.getenv("CHAT_ID",   "ISI_CHAT_ID_DISINI")
+BOT_TOKEN      = os.getenv("BOT_TOKEN",      "ISI_TOKEN_DISINI")
+_CHAT_ID_RAW   = os.getenv("CHAT_ID",        "ISI_CHAT_ID_DISINI")
+SSH_KEY        = os.getenv("SSH_KEY_LOCATION", "")   # path ke private key
+SSH_USER       = os.getenv("SSH_USER_NAME",   "")    # username host
+SSH_HOST       = "127.0.0.1"                          # selalu localhost
 CONFIG_FILE    = "/app/data/config.json"
 CHECK_INTERVAL = 60   # detik antar pengecekan suhu otomatis
 
@@ -42,7 +45,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# ─── PARSE CHAT_ID ───────────────────────────────────────────────────────────────
+# ─── PARSE CHAT_ID (single / multiple dengan pemisah , atau |) ──────────────────
 def _parse_chat_ids(raw: str) -> list[str]:
     raw = raw.strip()
     if "," in raw:
@@ -55,6 +58,7 @@ def _parse_chat_ids(raw: str) -> list[str]:
 
 ALLOWED_CHAT_IDS: list[str] = _parse_chat_ids(_CHAT_ID_RAW)
 log.info(f"Allowed CHAT_IDs: {ALLOWED_CHAT_IDS}")
+log.info(f"SSH_USER: '{SSH_USER}' | SSH_KEY: '{SSH_KEY}'")
 
 
 # ─── REPLY KEYBOARD (tombol permanen di bawah) ──────────────────────────────────
@@ -82,6 +86,45 @@ async def reject(update: Update):
         )
     except Exception:
         pass
+
+
+# ─── HELPER: SSH EXEC ────────────────────────────────────────────────────────────
+def ssh_ready() -> bool:
+    """Cek apakah SSH_KEY dan SSH_USER sudah dikonfigurasi."""
+    return bool(SSH_KEY.strip()) and bool(SSH_USER.strip())
+
+
+def run_ssh_command(command: str) -> tuple[bool, str]:
+    """
+    Jalankan perintah di host via SSH.
+    Return (success: bool, output: str)
+    """
+    try:
+        result = subprocess.run(
+            [
+                "ssh",
+                "-i", SSH_KEY,
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "BatchMode=yes",
+                "-o", "ConnectTimeout=10",
+                f"{SSH_USER}@{SSH_HOST}",
+                command,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if result.returncode == 0:
+            return True, result.stdout.strip()
+        else:
+            log.error(f"SSH command failed: {result.stderr.strip()}")
+            return False, result.stderr.strip()
+    except subprocess.TimeoutExpired:
+        log.error("SSH command timed out")
+        return False, "timeout"
+    except Exception as e:
+        log.error(f"SSH exception: {e}")
+        return False, str(e)
 
 
 # ─── HELPER: KONFIGURASI (max suhu) ─────────────────────────────────────────────
@@ -318,6 +361,16 @@ async def cmd_shutdown(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not allowed(update):
         await reject(update)
         return
+    # Cek SSH dulu sebelum tampilkan konfirmasi
+    if not ssh_ready():
+        await update.effective_message.reply_text(
+            "⚙️ Harap setting dahulu SSH anda untuk menggunakan fitur ini.\n\n"
+            "Set environment variable:\n"
+            "`SSH_KEY_LOCATION` = path private key\n"
+            "`SSH_USER_NAME` = username laptop",
+            parse_mode="Markdown",
+        )
+        return
     keyboard = [[
         InlineKeyboardButton("✅ Ya, matikan!", callback_data="confirm_shutdown"),
         InlineKeyboardButton("❌ Batal",        callback_data="cancel_shutdown"),
@@ -333,6 +386,16 @@ async def cmd_restart(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not allowed(update):
         await reject(update)
         return
+    # Cek SSH dulu sebelum tampilkan konfirmasi
+    if not ssh_ready():
+        await update.effective_message.reply_text(
+            "⚙️ Harap setting dahulu SSH anda untuk menggunakan fitur ini.\n\n"
+            "Set environment variable:\n"
+            "`SSH_KEY_LOCATION` = path private key\n"
+            "`SSH_USER_NAME` = username laptop",
+            parse_mode="Markdown",
+        )
+        return
     keyboard = [[
         InlineKeyboardButton("✅ Ya, restart!", callback_data="confirm_restart"),
         InlineKeyboardButton("❌ Batal",        callback_data="cancel_restart"),
@@ -345,9 +408,8 @@ async def cmd_restart(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ─── CALLBACK QUERY (inline buttons) ────────────────────────────────────────────
-# Simpan state: {user_id: {"komponen": "cpu"|"gpu", "value": int}}
-_pending_set:     dict[int, str] = {}   # user_id -> "cpu" | "gpu"
-_pending_confirm: dict[int, dict] = {}  # user_id -> {"komponen": ..., "value": ...}
+_pending_set:     dict[int, str]  = {}
+_pending_confirm: dict[int, dict] = {}
 
 
 async def callback_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -363,19 +425,39 @@ async def callback_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
     if data == "confirm_shutdown":
-        await query.edit_message_text("🛑 *Laptop akan dimatikan. Bye! 👋*", parse_mode="Markdown")
-        log.info("Shutdown command received. Executing...")
-        subprocess.Popen(["shutdown", "-h", "now"])
+        await query.edit_message_text("⏳ *Mengirim perintah shutdown...*", parse_mode="Markdown")
+        success, output = run_ssh_command("sudo shutdown -h now")
+        if success:
+            await query.edit_message_text("🛑 *Laptop akan dimatikan. Bye! 👋*", parse_mode="Markdown")
+            log.info("Shutdown berhasil via SSH.")
+        else:
+            await query.edit_message_text(
+                f"❌ *Shutdown Gagal Jalankan*\n`{output}`",
+                parse_mode="Markdown",
+            )
+            log.error(f"Shutdown gagal: {output}")
         return
 
     if data == "cancel_shutdown":
         await query.edit_message_text("✅ Shutdown dibatalkan.")
         return
 
+    # ── Restart ───────────────────────────────────────────────────────────────
     if data == "confirm_restart":
-        await query.edit_message_text("🔄 *Laptop akan direstart. Sampai jumpa sebentar! 👋*", parse_mode="Markdown")
-        log.info("Restart command received. Executing...")
-        subprocess.Popen(["reboot"])
+        await query.edit_message_text("⏳ *Mengirim perintah restart...*", parse_mode="Markdown")
+        success, output = run_ssh_command("sudo reboot")
+        if success:
+            await query.edit_message_text(
+                "🔄 *Laptop akan direstart. Sampai jumpa sebentar! 👋*",
+                parse_mode="Markdown",
+            )
+            log.info("Restart berhasil via SSH.")
+        else:
+            await query.edit_message_text(
+                f"❌ *Restart Gagal Jalankan*\n`{output}`",
+                parse_mode="Markdown",
+            )
+            log.error(f"Restart gagal: {output}")
         return
 
     if data == "cancel_restart":
@@ -424,28 +506,23 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     text    = update.message.text.strip()
     user_id = update.effective_user.id
 
-    # ── Tombol keyboard utama ─────────────────────────────────────────────────
     if text == "🖥️ PC Info":
         await cmd_pc_info(update, ctx)
         return
-
     if text == "🌡️ Cek Suhu Max":
         await cmd_get_max_temperature(update, ctx)
         return
-
     if text == "⚙️ Set Suhu Max":
         await cmd_set_max_temperature(update, ctx)
         return
-
     if text == "🔄 Restart":
         await cmd_restart(update, ctx)
         return
-
     if text == "🔴 Shutdown":
         await cmd_shutdown(update, ctx)
         return
 
-    # ── Input angka suhu (setelah pilih CPU/GPU) ──────────────────────────────
+    # ── Input angka suhu ─────────────────────────────────────────────────────
     if user_id in _pending_set:
         try:
             val = int(float(text))
@@ -458,8 +535,6 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         komponen = _pending_set.pop(user_id)
         cfg      = load_config()
         old_val  = cfg.get(f"max_{komponen}", "?")
-
-        # Simpan ke pending confirm
         _pending_confirm[user_id] = {"komponen": komponen, "value": val}
 
         keyboard = [[
@@ -468,7 +543,7 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ]]
         await update.message.reply_text(
             f"🌡️ *Konfirmasi Perubahan Suhu*\n\n"
-            f"Komponen : *{komponen.upper()}*\n"
+            f"Komponen  : *{komponen.upper()}*\n"
             f"Sebelumnya: *{old_val}°*\n"
             f"Baru      : *{val}°*\n\n"
             f"Yakin ingin menyimpan?",
@@ -529,20 +604,19 @@ async def temperature_watcher(app: Application):
                         log.warning(f"Suhu {komponen} warning sent to {cid}: {temp}° / {max_temp}°")
                     except Exception as e:
                         log.error(f"Gagal kirim warning suhu ke {cid}: {e}")
-
             elif pct <= 90:
                 _warned[komponen.lower()] = False
 
 
-# ─── SETUP COMMANDS (menu di tombol "/" Telegram) ────────────────────────────────
+# ─── SETUP COMMANDS ──────────────────────────────────────────────────────────────
 async def setup_bot_commands(app: Application):
     await app.bot.set_my_commands([
-        BotCommand("menu",                 "Tampilkan menu utama"),
-        BotCommand("pc_info",              "Info sistem lengkap"),
-        BotCommand("get_max_temperature",  "Lihat batas suhu CPU/GPU"),
-        BotCommand("set_max_temperature",  "Set batas suhu CPU/GPU"),
-        BotCommand("pc_restart",           "Restart laptop"),
-        BotCommand("pc_shutdown",          "Matikan laptop"),
+        BotCommand("menu",                "Tampilkan menu utama"),
+        BotCommand("pc_info",             "Info sistem lengkap"),
+        BotCommand("get_max_temperature", "Lihat batas suhu CPU/GPU"),
+        BotCommand("set_max_temperature", "Set batas suhu CPU/GPU"),
+        BotCommand("pc_restart",          "Restart laptop"),
+        BotCommand("pc_shutdown",         "Matikan laptop"),
     ])
     log.info("Bot commands registered.")
 
@@ -556,10 +630,10 @@ async def post_init(app: Application):
 
 def main():
     if BOT_TOKEN == "ISI_TOKEN_DISINI":
-        log.error("BOT_TOKEN belum diisi! Set via environment variable BOT_TOKEN.")
+        log.error("BOT_TOKEN belum diisi!")
         return
     if _CHAT_ID_RAW == "ISI_CHAT_ID_DISINI":
-        log.error("CHAT_ID belum diisi! Set via environment variable CHAT_ID.")
+        log.error("CHAT_ID belum diisi!")
         return
 
     app = (
