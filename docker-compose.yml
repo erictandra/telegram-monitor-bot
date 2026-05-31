@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  telegram-monitor-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tg-laptop-monitor
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - CHAT_ID=${CHAT_ID}
+    privileged: true
+    network_mode: host
+    volumes:
+      - /sys:/sys:ro
+      - /proc:/proc:ro
+      - bot-data:/app/data
+
+volumes:
+  bot-data:
+    driver: local
