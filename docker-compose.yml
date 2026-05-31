@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    pull_policy: build
     container_name: tg-laptop-monitor
     restart: unless-stopped
     environment:
