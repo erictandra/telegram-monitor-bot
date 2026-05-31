@@ -65,7 +65,6 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
         [KeyboardButton("🔴 Shutdown")],
     ],
     resize_keyboard=True,
-    persistent=True,
     input_field_placeholder="Pilih menu atau ketik perintah...",
 )
 
