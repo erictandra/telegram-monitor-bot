@@ -1,107 +1,136 @@
 # 🖥️ Telegram Laptop Monitor Bot
 
-Bot Telegram untuk monitoring laptop Ubuntu — suhu, RAM, CPU, GPU, baterai, IP, serta **shutdown & restart remote via SSH**.
+Bot Telegram untuk monitoring laptop Ubuntu dari jarak jauh — cek suhu, RAM, CPU, GPU, baterai, IP, serta **shutdown & restart remote**.
 
 ---
 
-## ✨ Fitur Lengkap
+## ✨ Fitur
 
 | Fitur | Keterangan |
 |---|---|
-| 🟢 Notifikasi hidup | Kirim pesan otomatis beserta IP saat bot/laptop start |
+| 🟢 Notifikasi hidup | Kirim pesan otomatis beserta IP saat laptop nyala |
 | 🖥️ PC Info | OS, RAM, CPU & GPU usage, suhu, baterai, IP lokal & publik |
-| 🌡️ Set batas suhu | Set suhu maksimum CPU/GPU dengan konfirmasi |
-| 🌡️ Cek batas suhu | Lihat batas suhu yang sedang aktif |
-| 🔄 Restart | Restart laptop remote via SSH dengan konfirmasi |
-| 🔴 Shutdown | Matikan laptop remote via SSH dengan konfirmasi |
-| 📋 Menu tombol | Keyboard permanen di bawah chat |
-| 🔔 Warning suhu | Notifikasi otomatis jika suhu >90% dari batas |
-| 👥 Multi user | CHAT_ID bisa lebih dari satu |
-| 🔒 Akses terbatas | Hanya CHAT_ID terdaftar yang bisa pakai bot |
+| 🌡️ Monitor suhu | Warning otomatis jika suhu melebihi batas yang diset |
+| 🔄 Restart | Restart laptop remote dengan konfirmasi |
+| 🔴 Shutdown | Matikan laptop remote dengan konfirmasi |
+| 📋 Menu tombol | Keyboard permanen di bawah chat, tidak perlu ketik |
+| 👥 Multi user | Bisa diakses lebih dari 1 orang |
+| 🔒 Akses terbatas | Hanya user terdaftar yang bisa pakai bot |
 
 ---
 
-## 📋 Daftar Perintah
+## 📋 Perintah Bot
 
-| Perintah | Fungsi |
+| Perintah / Tombol | Fungsi |
 |---|---|
 | `/start` | Salam pembuka + tampilkan menu |
-| `/menu` | Tampilkan ulang tombol menu jika hilang |
-| `/pc_info` | Info sistem lengkap |
-| `/get_max_temperature` | Lihat batas suhu CPU/GPU saat ini |
-| `/set_max_temperature` | Set batas suhu CPU/GPU |
-| `/pc_restart` | Restart laptop (perlu SSH dikonfigurasi) |
-| `/pc_shutdown` | Matikan laptop (perlu SSH dikonfigurasi) |
+| `/menu` | Tampilkan ulang tombol jika hilang |
+| `/pc_info` atau 🖥️ PC Info | Info sistem lengkap |
+| `/get_max_temperature` atau 🌡️ Cek Suhu Max | Lihat batas suhu aktif |
+| `/set_max_temperature` atau ⚙️ Set Suhu Max | Set batas suhu CPU/GPU |
+| `/pc_restart` atau 🔄 Restart | Restart laptop |
+| `/pc_shutdown` atau 🔴 Shutdown | Matikan laptop |
 
 ---
 
-## 🔑 Cara Mendapatkan CHAT_ID
+## 🗂️ Struktur File Project
 
-### Cara 1 — @userinfobot (termudah)
+```
+telegram-monitor-bot/
+├── bot.py                ← kode utama bot
+├── Dockerfile            ← image Docker
+├── docker-compose.yml    ← stack untuk Portainer
+├── requirements.txt      ← dependency Python
+├── .env.example          ← contoh konfigurasi env
+├── .gitignore            ← pastikan ssh/ ada di sini
+├── ssh/                  ← folder SSH key (JANGAN dicommit ke GitHub)
+│   ├── bot_key           ← private key
+│   └── bot_key.pub       ← public key
+└── README.md             ← dokumentasi ini
+```
 
-1. Buka Telegram → cari **@userinfobot**
+---
+
+## 🚀 Panduan Setup Lengkap (Untuk Pemula)
+
+### BAGIAN 1 — Persiapan Telegram
+
+#### 1.1 Buat Bot Telegram
+
+1. Buka Telegram → cari **@BotFather**
+2. Klik **Start**
+3. Ketik `/newbot`
+4. Ikuti instruksi — masukkan nama bot dan username bot
+5. BotFather akan memberikan **Token**, contoh:
+   ```
+   1234567890:AAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+6. Simpan token ini, akan dipakai nanti
+
+#### 1.2 Dapatkan CHAT_ID Anda
+
+CHAT_ID adalah ID unik akun Telegram Anda. Bot hanya merespons ID yang terdaftar.
+
+**Cara paling mudah — @userinfobot:**
+
+1. Cari **@userinfobot** di Telegram
 2. Klik **Start**
 3. Bot langsung reply, catat angka di bagian **Id**:
+   ```
+   Your user information:
+   Id: 987654321       ← ini CHAT_ID Anda
+   First name: Eric
+   ```
 
-```
-Your user information:
-Id: 987654321       ← ini CHAT_ID Anda
-First name: Eric
-```
-
-### Cara 2 — @RawDataBot
+**Cara alternatif — @RawDataBot:**
 
 1. Cari **@RawDataBot** → klik **Start**
-2. Lihat bagian JSON:
+2. Lihat bagian JSON yang muncul:
+   ```json
+   "chat": {
+       "id": 987654321   ← ini CHAT_ID
+   }
+   ```
 
-```json
-"chat": {
-    "id": 987654321,
-    "type": "private"
-}
-```
-
-### Cara 3 — CHAT_ID Group
+**Untuk Group Chat:**
 
 1. Tambahkan bot ke grup
 2. Kirim pesan di grup
-3. Buka browser akses:
+3. Buka browser, akses URL (ganti TOKEN dengan token bot Anda):
    ```
-   https://api.telegram.org/botTOKEN_ANDA/getUpdates
+   https://api.telegram.org/botTOKEN/getUpdates
    ```
 4. Cari `"chat"` → `"id"` — angkanya **negatif** untuk grup:
    ```json
    "chat": { "id": -1001234567890 }
    ```
 
----
+#### 1.3 CHAT_ID untuk Lebih dari 1 Orang
 
-## 👥 Konfigurasi CHAT_ID Single & Multiple
+Bot bisa diakses oleh beberapa orang sekaligus. Pisahkan dengan koma:
 
 ```bash
-# 1 user
+# 1 orang
 CHAT_ID=987654321
 
-# 2+ user — pisahkan dengan koma
+# 2 orang atau lebih — pisah koma
 CHAT_ID=987654321,111222333,444555666
 
-# 2+ user — alternatif pakai garis lurus
+# Alternatif — pisah garis lurus
 CHAT_ID=987654321|111222333
 ```
 
-> ⚠️ **Jangan ada spasi** di sekitar pemisah.
+> ⚠️ Jangan ada spasi di sekitar pemisah
 > ✅ Benar : `CHAT_ID=101,102`
 > ❌ Salah : `CHAT_ID=101, 102`
 
-Bot akan balas `⛔ Anda tidak memiliki akses ke bot ini.` jika ID tidak terdaftar.
-
 ---
 
-## 🔐 Setup SSH (Wajib untuk Shutdown & Restart)
+### BAGIAN 2 — Persiapan SSH di Laptop
 
-Fitur shutdown dan restart bekerja dengan cara bot **SSH ke localhost** dari dalam container ke host laptop. Berikut langkah lengkapnya:
+Fitur **Shutdown** dan **Restart** bekerja dengan cara bot SSH ke laptop dari dalam container. Bagian ini wajib disetup agar kedua fitur tersebut bisa berjalan.
 
-### Langkah 1 — Install & aktifkan SSH Server di laptop
+#### 2.1 Install SSH Server
 
 ```bash
 sudo apt install openssh-server -y
@@ -110,40 +139,43 @@ sudo systemctl start ssh
 
 # Verifikasi SSH berjalan
 sudo systemctl status ssh
+# Harus tampil: Active: active (running)
 ```
 
-### Langkah 2 — Buat SSH key khusus untuk bot
-
-Jalankan perintah ini **di laptop host** (bukan di container):
+#### 2.2 Buat SSH Key Khusus untuk Bot
 
 ```bash
-# Buat folder untuk menyimpan key
+# Buat folder ssh di dalam folder project
 mkdir -p /home/eric-tandra/PortainerApp/telegram-monitor-bot/ssh
 
-# Generate SSH key tanpa passphrase
+# Generate SSH key baru (tanpa passphrase)
 ssh-keygen -t ed25519 \
   -f /home/eric-tandra/PortainerApp/telegram-monitor-bot/ssh/bot_key \
   -N "" \
   -C "telegram-bot-key"
 ```
 
-Akan terbuat 2 file:
-- `ssh/bot_key` — private key (untuk container)
-- `ssh/bot_key.pub` — public key (didaftarkan ke host)
+Perintah di atas membuat 2 file:
+- `ssh/bot_key` → **private key** (dipakai oleh container)
+- `ssh/bot_key.pub` → **public key** (didaftarkan ke laptop)
 
-### Langkah 3 — Daftarkan public key ke host
+#### 2.3 Daftarkan Public Key ke Laptop
 
 ```bash
-# Tambahkan public key ke authorized_keys
-cat /home/eric-tandra/PortainerApp/telegram-monitor-bot/ssh/bot_key.pub \
-  >> /home/eric-tandra/.ssh/authorized_keys
+# Buat folder .ssh jika belum ada
+mkdir -p ~/.ssh
 
-# Pastikan permission benar
-chmod 700 /home/eric-tandra/.ssh
-chmod 600 /home/eric-tandra/.ssh/authorized_keys
+# Daftarkan public key
+cat /home/eric-tandra/PortainerApp/telegram-monitor-bot/ssh/bot_key.pub \
+  >> ~/.ssh/authorized_keys
+
+# Set permission yang benar
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+chmod 600 /home/eric-tandra/PortainerApp/telegram-monitor-bot/ssh/bot_key
 ```
 
-### Langkah 4 — Izinkan user jalankan shutdown/reboot tanpa password
+#### 2.4 Izinkan Shutdown & Reboot Tanpa Password
 
 ```bash
 sudo visudo
@@ -157,38 +189,97 @@ eric-tandra ALL=(ALL) NOPASSWD: /sbin/shutdown, /sbin/reboot
 
 Simpan: `Ctrl+O` → `Enter` → `Ctrl+X`
 
-### Langkah 5 — Test koneksi SSH manual
+#### 2.5 Test Koneksi SSH
 
 ```bash
 ssh -i /home/eric-tandra/PortainerApp/telegram-monitor-bot/ssh/bot_key \
     -o StrictHostKeyChecking=no \
     eric-tandra@127.0.0.1 \
-    "echo 'SSH OK'"
+    "echo SSH OK"
 ```
 
 Output harus: `SSH OK`
 
+Test sudo tanpa password:
+
+```bash
+ssh -i /home/eric-tandra/PortainerApp/telegram-monitor-bot/ssh/bot_key \
+    -o StrictHostKeyChecking=no \
+    eric-tandra@127.0.0.1 \
+    "sudo shutdown -h +1 && sudo shutdown -c"
+```
+
+Tidak boleh muncul pertanyaan password. Kalau OK berarti semua sudah siap.
+
 ---
 
-## 🐳 Deploy via Portainer
+### BAGIAN 3 — Setup GitHub (Opsional tapi Direkomendasikan)
 
-### Langkah 1 — Build image
+Menyimpan script di GitHub memudahkan update ke depannya — tinggal push ke GitHub lalu redeploy di Portainer.
+
+#### 3.1 Buat .gitignore dulu (PENTING)
 
 ```bash
 cd /home/eric-tandra/PortainerApp/telegram-monitor-bot
-docker build -t tg-monitor-bot:latest .
+
+cat > .gitignore << 'EOF'
+ssh/
+.env
+__pycache__/
+*.pyc
+EOF
 ```
 
-### Langkah 2 — Buat Stack di Portainer
+> ⚠️ Folder `ssh/` wajib ada di `.gitignore` agar private key tidak terupload ke GitHub!
 
-Portainer → **Stacks** → **+ Add stack** → tab **Web editor**, paste:
+#### 3.2 Push ke GitHub
+
+```bash
+cd /home/eric-tandra/PortainerApp/telegram-monitor-bot
+
+git init
+git add .
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/USERNAME/telegram-monitor-bot.git
+git push -u origin main
+```
+
+---
+
+### BAGIAN 4 — Deploy di Portainer
+
+#### 4.1 Buat Stack Baru
+
+1. Buka Portainer → klik **Stacks** di sidebar
+2. Klik **+ Add stack**
+3. Beri nama: `pc-bot-telegram`
+
+#### 4.2 Pilih Sumber (salah satu)
+
+**Dari GitHub (direkomendasikan):**
+
+Pilih tab **Repository**, isi:
+
+| Field | Value |
+|---|---|
+| Repository URL | `https://github.com/USERNAME/telegram-monitor-bot` |
+| Repository reference | `refs/heads/main` |
+| Compose path | `docker-compose.yml` |
+
+**Dari Web Editor (tanpa GitHub):**
+
+Pilih tab **Web editor**, paste isi `docker-compose.yml`:
 
 ```yaml
 version: "3.9"
 
 services:
   telegram-monitor-bot:
-    image: tg-monitor-bot:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    pull_policy: build
     container_name: tg-laptop-monitor
     restart: unless-stopped
     environment:
@@ -199,9 +290,9 @@ services:
     privileged: true
     network_mode: host
     volumes:
+      - ${SSH_KEY_HOST_PATH}:/app/ssh:ro
       - /sys:/sys:ro
       - /proc:/proc:ro
-      - /home/eric-tandra/PortainerApp/telegram-monitor-bot/ssh:/app/ssh:ro
       - bot-data:/app/data
 
 volumes:
@@ -209,68 +300,83 @@ volumes:
     driver: local
 ```
 
-### Langkah 3 — Isi Environment Variables di Portainer
+#### 4.3 Isi Environment Variables
+
+Scroll ke bawah, isi semua variable berikut:
 
 | Name | Contoh | Keterangan |
 |---|---|---|
 | `BOT_TOKEN` | `1234567890:AAxxxx` | Token dari @BotFather |
-| `CHAT_ID` | `987654321` atau `987654321,111222` | ID dari @userinfobot |
-| `SSH_KEY_LOCATION` | `/app/ssh/bot_key` | Path key di dalam container |
-| `SSH_USER_NAME` | `eric-tandra` | Username laptop host |
+| `CHAT_ID` | `987654321` | ID dari @userinfobot, bisa multiple |
+| `SSH_KEY_HOST_PATH` | `/home/eric-tandra/PortainerApp/telegram-monitor-bot/ssh` | Path folder ssh di laptop host |
+| `SSH_KEY_LOCATION` | `/app/ssh/bot_key` | Path key di dalam container (selalu ini) |
+| `SSH_USER_NAME` | `eric-tandra` | Username laptop |
 
-Klik **Deploy the stack**.
+#### 4.4 Deploy
+
+Klik **Deploy the stack** dan tunggu hingga selesai.
+
+Cek log untuk memastikan bot berjalan:
+
+```bash
+docker logs tg-laptop-monitor --tail 30
+```
+
+Harus muncul:
+```
+INFO - Allowed CHAT_IDs: ['987654321']
+INFO - SSH_USER: 'eric-tandra' | SSH_KEY: '/app/ssh/bot_key'
+INFO - Bot berjalan dengan mode polling...
+INFO - Startup notification sent to 987654321.
+```
+
+Dan di Telegram Anda akan menerima pesan:
+```
+✅ Laptop sudah hidup!
+🏠 Local : 192.168.x.x
+🌐 Online: xxx.xxx.xxx.xxx
+```
 
 ---
 
-## 🐳 Deploy via GitHub + Portainer
+### BAGIAN 5 — Update Script ke Depannya
 
-### Push ke GitHub
+#### Jika pakai GitHub
 
 ```bash
+# Edit file yang ingin diubah
+nano /home/eric-tandra/PortainerApp/telegram-monitor-bot/bot.py
+
+# Push ke GitHub
 cd /home/eric-tandra/PortainerApp/telegram-monitor-bot
-git init
-git add .
-git commit -m "first commit"
-git branch -M main
-git remote add origin https://github.com/USERNAME/telegram-monitor-bot.git
-git push -u origin main
-```
-
-> ⚠️ Pastikan folder `ssh/` ada di `.gitignore` agar private key tidak terupload!
-
-```bash
-echo "ssh/" >> .gitignore
-git add .gitignore
-git commit -m "chore: ignore ssh keys"
-git push
-```
-
-### Buat Stack di Portainer (tab Repository)
-
-| Field | Value |
-|---|---|
-| Repository URL | `https://github.com/USERNAME/telegram-monitor-bot` |
-| Repository reference | `refs/heads/main` |
-| Compose path | `docker-compose.yml` |
-
-Isi environment variables seperti tabel di atas, klik **Deploy**.
-
-### Update script ke depan
-
-```bash
-nano bot.py   # atau edit lainnya
 git add .
 git commit -m "deskripsi perubahan"
 git push
 ```
 
-Portainer → **Stacks** → **pc-bot-telegram** → **Pull and redeploy**.
+Lalu di Portainer → **Stacks** → `pc-bot-telegram` → **Pull and redeploy**.
+
+#### Jika tanpa GitHub
+
+```bash
+# Edit langsung di server
+nano /home/eric-tandra/PortainerApp/telegram-monitor-bot/bot.py
+```
+
+Lalu di Portainer → **Containers** → `tg-laptop-monitor` → **Restart**.
+
+> Catatan: Jika ada perubahan di `Dockerfile`, wajib rebuild image dulu:
+> ```bash
+> cd /home/eric-tandra/PortainerApp/telegram-monitor-bot
+> docker build -t tg-monitor-bot:latest .
+> ```
+> Baru kemudian Pull and redeploy di Portainer.
 
 ---
 
-## 🌡️ Cara Kerja Monitoring Suhu
+## 🌡️ Cara Kerja Monitor Suhu
 
-Bot cek suhu setiap **60 detik**. Jika suhu melebihi **90% dari batas** yang diset, semua CHAT_ID terdaftar mendapat peringatan:
+Bot mengecek suhu setiap **60 detik**. Jika suhu melebihi **90% dari batas** yang diset, semua CHAT_ID terdaftar mendapat peringatan otomatis:
 
 ```
 🔥 PERINGATAN SUHU CPU!
@@ -279,52 +385,39 @@ Batas maksimum: 80°
 Persentase    : 92.50%
 ```
 
-Rumus: `(suhu / batas_max) × 100`
+Rumus perhitungan: `(suhu_sekarang ÷ batas_max) × 100`
+
+Peringatan tidak berulang sampai suhu turun di bawah 90% lagi.
 
 ---
 
 ## 🔬 Dukungan Sensor Hardware
 
-| Komponen | Metode |
+| Komponen | Metode Deteksi |
 |---|---|
-| Suhu CPU Intel | `psutil` → `coretemp` |
-| Suhu CPU AMD | `psutil` → `k10temp` |
+| Suhu CPU Intel | `psutil` → sensor `coretemp` |
+| Suhu CPU AMD | `psutil` → sensor `k10temp` |
 | Suhu CPU ARM | `/sys/class/thermal/thermal_zone0/temp` |
-| Suhu GPU NVIDIA | `nvidia-smi` |
-| Suhu GPU AMD | `psutil` → `amdgpu` / `radeon` |
+| Suhu GPU NVIDIA | `nvidia-smi` (driver harus terinstall di host) |
+| Suhu GPU AMD | `psutil` → sensor `amdgpu` / `radeon` |
 | Baterai | `psutil.sensors_battery()` |
-| RAM & CPU | `psutil` |
+| RAM & CPU Usage | `psutil` |
 
----
-
-## 📁 Struktur File
-
-```
-telegram-monitor-bot/
-├── bot.py              ← kode utama bot
-├── requirements.txt    ← dependency Python
-├── Dockerfile          ← image Docker
-├── docker-compose.yml  ← stack untuk Portainer
-├── .env.example        ← contoh konfigurasi
-├── .gitignore          ← pastikan ssh/ ada di sini
-├── ssh/                ← folder SSH key (JANGAN dicommit)
-│   ├── bot_key         ← private key
-│   └── bot_key.pub     ← public key
-└── README.md           ← dokumentasi ini
-```
+> Jika sensor tidak terdeteksi, kolom terkait tampil `N/A` — bot tetap berjalan normal.
 
 ---
 
 ## 🐛 Troubleshooting
 
-| Error / Gejala | Solusi |
-|---|---|
-| `Harap setting dahulu SSH` | Isi `SSH_KEY_LOCATION` dan `SSH_USER_NAME` di env |
-| `Shutdown/Restart Gagal Jalankan` | Cek SSH key path, permission, dan sudoers |
-| Bot tidak reply | Cek `CHAT_ID` benar, tanpa spasi/kutip |
-| Notifikasi startup tidak muncul | Pastikan `post_init` lewat `.post_init()` di builder |
-| Suhu N/A | `privileged: true` belum diset atau driver sensor belum ada |
-| `unexpected keyword argument 'persistent'` | Hapus `persistent=True` dari `ReplyKeyboardMarkup` |
-| `Command pc-info is not valid` | Nama command tidak boleh pakai `-`, gunakan `_` |
-| SSH: `Permission denied` | Cek `authorized_keys` dan permission folder `.ssh` |
-| SSH: `sudo: no tty` | Pastikan sudoers sudah diset `NOPASSWD` untuk shutdown/reboot |
+| Error / Gejala | Penyebab | Solusi |
+|---|---|---|
+| `Harap setting dahulu SSH` | Env SSH belum diisi | Isi `SSH_KEY_LOCATION` dan `SSH_USER_NAME` di Portainer |
+| `Shutdown/Restart Gagal Jalankan` | SSH gagal konek atau sudoers belum diset | Jalankan test SSH manual, cek sudoers |
+| `No such file or directory: 'ssh'` | `openssh-client` belum ada di container | Rebuild image dari Dockerfile terbaru |
+| `sudo: a password is required` | Sudoers belum dikonfigurasi | Tambahkan `NOPASSWD` di `sudo visudo` |
+| `Permission denied (publickey)` | Public key belum terdaftar | Jalankan perintah di langkah 2.3 |
+| Bot tidak reply sama sekali | CHAT_ID salah atau ada spasi/kutip | Cek env `CHAT_ID` di Portainer |
+| Notifikasi startup tidak muncul | `post_init` salah cara assign | Pastikan pakai `.post_init()` di builder |
+| Suhu tampil N/A | `privileged: true` belum diset | Pastikan ada di docker-compose.yml |
+| Tombol menu hilang | Keyboard reset | Ketik `/menu` untuk tampilkan ulang |
+| `unexpected keyword argument 'persistent'` | Versi library lama | Hapus `persistent=True` dari ReplyKeyboardMarkup |
